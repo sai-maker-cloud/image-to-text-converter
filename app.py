@@ -1,14 +1,20 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
-import numpy as np
+import threading
+import time
+import uuid
 import io
-import easyocr
+import numpy as np
 import cv2
+import easyocr
 import PyPDF2
 from pdf2image import convert_from_bytes
 
 app = Flask(__name__)
 CORS(app)
+
+# Store progress { task_id: {progress, text} }
+tasks = {}
 
 # Initialize EasyOCR
 try:
@@ -19,92 +25,80 @@ except:
     print("EasyOCR initialized on CPU")
 
 
+def process_pdf_background(task_id, file_bytes):
+    """Process PDF in background with progress tracking"""
+
+    tasks[task_id] = {"progress": 0, "text": ""}
+
+    pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+    total_pages = len(pdf_reader.pages)
+
+    # Convert ALL pages at once (Fix for multiple pages)
+    all_images = convert_from_bytes(file_bytes)
+
+    collected_text = ""
+
+    for i, page in enumerate(pdf_reader.pages):
+        # Update progress
+        tasks[task_id]["progress"] = int((i / total_pages) * 100)
+
+        # Try text extraction first
+        extracted = page.extract_text()
+
+        if extracted and extracted.strip():
+            collected_text += f"\n--- Page {i+1} (Text) ---\n"
+            collected_text += extracted + "\n"
+
+        else:
+            # Fallback to OCR using the pre-rendered page image
+            img = all_images[i]
+
+            cv_img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+            gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+
+            results = reader.readtext(gray)
+            ocr_text = "\n".join([r[1] for r in results])
+
+            collected_text += f"\n--- Page {i+1} (OCR) ---\n"
+            collected_text += ocr_text + "\n"
+
+        time.sleep(0.3)  # smooth progress updates
+
+    tasks[task_id]["text"] = collected_text
+    tasks[task_id]["progress"] = 100  # finished
+
+
+@app.route('/api/pdf', methods=['POST'])
+def upload_pdf():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file found"}), 400
+
+    file = request.files['file']
+    file_bytes = file.read()
+
+    task_id = str(uuid.uuid4())
+
+    # Run background thread
+    threading.Thread(target=process_pdf_background, args=(task_id, file_bytes)).start()
+
+    return jsonify({"task_id": task_id})
+
+
+@app.route('/api/progress/<task_id>')
+def progress(task_id):
+    if task_id not in tasks:
+        return jsonify({"error": "Invalid task ID"}), 404
+
+    return jsonify({
+        "progress": tasks[task_id]["progress"],
+        "text": tasks[task_id]["text"] if tasks[task_id]["progress"] == 100 else ""
+    })
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
 
-@app.route('/api/ocr', methods=['POST'])
-def ocr_endpoint():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file found under key "file"'}), 400
-
-    file = request.files['file']
-
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-
-    filename = file.filename.lower()
-
-    # =====================================================================
-    #  🔍 CASE 1: PDF → Extract text (first PyPDF2, then OCR fallback)
-    # =====================================================================
-    if filename.endswith('.pdf'):
-        try:
-            file_bytes = file.read()
-            pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
-
-            final_text = ""
-            total_pages = len(pdf_reader.pages)
-
-            for i, page in enumerate(pdf_reader.pages):
-                extracted = page.extract_text()
-
-                if extracted and extracted.strip():
-                    final_text += f"\n--- Page {i+1} (Text) ---\n"
-                    final_text += extracted + "\n"
-                else:
-                    # Fallback to OCR → Convert PDF page to image
-                    final_text += f"\n--- Page {i+1} (OCR Applied) ---\n"
-                    pages = convert_from_bytes(file_bytes, first_page=i+1, last_page=i+1)
-
-                    for img in pages:
-                        # Convert to OpenCV image
-                        cv_img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-                        gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
-
-                        results = reader.readtext(gray)
-                        ocr_text = "\n".join([r[1] for r in results])
-
-                        final_text += ocr_text + "\n"
-
-            return jsonify({
-                'status': 'PDF processed successfully',
-                'pages': total_pages,
-                'text': final_text.strip()
-            })
-
-        except Exception as e:
-            return jsonify({'error': f'PDF processing failed: {str(e)}'}), 500
-
-    # =====================================================================
-    #  🔍 CASE 2: IMAGE FILE → Perform OCR
-    # =====================================================================
-    try:
-        image_bytes = file.read()
-
-        nparr = np.frombuffer(image_bytes, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        enhanced_gray = clahe.apply(gray)
-
-        _, buffer = cv2.imencode('.png', enhanced_gray)
-        processed_image_bytes = buffer.tobytes()
-
-        results = reader.readtext(processed_image_bytes)
-        text = "\n".join([res[1] for res in results])
-
-        return jsonify({
-            'status': 'Image processed successfully',
-            'text': text.strip()
-        })
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
 if __name__ == '__main__':
-    # NOTE: Run with poppler installed for pdf2image!
     app.run(debug=True, host='0.0.0.0', port=5000)
