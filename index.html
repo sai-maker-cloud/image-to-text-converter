@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image/PDF to Text Converter (OCR Tool)</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles (1).css') }}">
+</head>
+<body>
+
+    <div class="container">
+        <h1>📷 Image & PDF Text Extractor</h1>
+        
+        <p>Upload an image (PNG, JPG) or a multi-page PDF to extract text using OCR.</p>
+
+        <div class="uploader">
+            <input type="file" id="fileInput" accept="image/*, application/pdf">
+            
+            <button id="uploadBtn">Extract Text</button>
+        </div>
+
+        <hr>
+
+        <div class="preview" id="previewArea">
+            Select a file to see a preview (images only).
+        </div>
+
+        <div class="output">
+            <h2>📝 Extracted Text:</h2>
+            
+            <div id="progressBarContainer" class="progress-bar-container">
+                <div id="progressBar" class="progress-bar"></div>
+            </div>
+            
+            <div class="status" id="status">Ready.</div>
+
+            <pre id="extractedText">Your extracted text will appear here.</pre>
+        </div>
+        
+    </div>
+
+    <script src="{{ url_for('static', filename='main (1).js') }}"></script>
+</body>
+</html>
