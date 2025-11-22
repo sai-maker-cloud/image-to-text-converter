@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OCR & PDF Extractor</title>
+
+    <style>
+        body {
+            background: #121212;
+            color: white;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 550px;
+            margin: auto;
+            padding: 20px;
+            background: #1f1f1f;
+            border-radius: 10px;
+            box-shadow: 0 0 10px #0008;
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        input[type="file"] {
+            margin: 15px 0;
+            width: 100%;
+        }
+
+        .preview-img {
+            max-width: 100%;
+            max-height: 250px;
+            display: block;
+            margin: 10px auto;
+            border-radius: 8px;
+        }
+
+        #previewArea {
+            padding: 10px;
+            text-align: center;
+            color: #bbb;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #0066ff;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background: #0053cc;
+        }
+
+        #status {
+            margin: 10px 0;
+            font-size: 15px;
+            text-align: center;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            width: 100%;
+            background: #333;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 10px;
+            width: 0%;
+            background: #00e676;
+            transition: width .2s ease;
+        }
+
+        #extractedText {
+            white-space: pre-wrap;
+            background: #222;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 20px;
+            min-height: 80px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Image / PDF Text Extractor</h2>
+
+        <input type="file" id="fileInput" accept="image/*,application/pdf" />
+
+        <div id="previewArea">No file selected</div>
+
+        <button id="uploadBtn">Upload & Extract</button>
+
+        <div id="status"></div>
+
+        <!-- Upload Progress Bar -->
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <h3>Extracted Text:</h3>
+        <div id="extractedText"></div>
+    </div>
+
+    <script src="main.js"></script>
+
+    <script>
+        // Progress bar logic (injecting into main.js functionality)
+        const uploadBtn = document.getElementById("uploadBtn");
+        const progressBar = document.getElementById("progressBar");
+        const progressContainer = document.getElementById("progressContainer");
+
+        // Replace fetch with XMLHttpRequest (for progress tracking)
+        uploadBtn.onclick = async () => {
+            if (!selectedFile) {
+                alert("Select a file first!");
+                return;
+            }
+
+            statusEl.textContent = "Uploading...";
+            extractedTextEl.textContent = "";
+            previewArea.scrollIntoView({ behavior: "smooth" });
+
+            const form = new FormData();
+            form.append("file", selectedFile);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", "/api/ocr");
+
+            progressContainer.style.display = "block";
+            progressBar.style.width = "0%";
+
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    let percent = Math.round((event.loaded / event.total) * 100);
+                    progressBar.style.width = percent + "%";
+                }
+            };
+
+            xhr.onload = () => {
+                progressBar.style.width = "100%";
+
+                if (xhr.status === 200) {
+                    const res = JSON.parse(xhr.responseText);
+                    statusEl.textContent = res.status || "Done";
+                    extractedTextEl.textContent = res.text || "No text extracted";
+                } else {
+                    statusEl.textContent = "Upload error";
+                }
+            };
+
+            xhr.onerror = () => {
+                statusEl.textContent = "Upload failed";
+            };
+
+            xhr.send(form);
+        };
+    </script>
+</body>
+</html>
