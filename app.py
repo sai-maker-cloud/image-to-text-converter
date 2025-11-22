@@ -4,7 +4,8 @@ import numpy as np
 import io
 import easyocr
 import cv2
-import PyPDF2   # <--- NEW: to extract text from PDF
+import PyPDF2
+from pdf2image import convert_from_bytes
 
 app = Flask(__name__)
 CORS(app)
@@ -12,14 +13,16 @@ CORS(app)
 # Initialize EasyOCR
 try:
     reader = easyocr.Reader(['en'], gpu=True)
-    print("EasyOCR reader initialized on GPU.")
+    print("EasyOCR initialized on GPU")
 except:
     reader = easyocr.Reader(['en'], gpu=False)
-    print("EasyOCR reader initialized on CPU.")
+    print("EasyOCR initialized on CPU")
+
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/api/ocr', methods=['POST'])
 def ocr_endpoint():
@@ -33,28 +36,50 @@ def ocr_endpoint():
 
     filename = file.filename.lower()
 
-    # ------------------------------
-    # 🔍 If file is PDF → extract text
-    # ------------------------------
+    # =====================================================================
+    #  🔍 CASE 1: PDF → Extract text (first PyPDF2, then OCR fallback)
+    # =====================================================================
     if filename.endswith('.pdf'):
         try:
-            pdf_reader = PyPDF2.PdfReader(file)
-            text = ""
+            file_bytes = file.read()
+            pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
 
-            for page in pdf_reader.pages:
-                text += page.extract_text() + "\n"
+            final_text = ""
+            total_pages = len(pdf_reader.pages)
+
+            for i, page in enumerate(pdf_reader.pages):
+                extracted = page.extract_text()
+
+                if extracted and extracted.strip():
+                    final_text += f"\n--- Page {i+1} (Text) ---\n"
+                    final_text += extracted + "\n"
+                else:
+                    # Fallback to OCR → Convert PDF page to image
+                    final_text += f"\n--- Page {i+1} (OCR Applied) ---\n"
+                    pages = convert_from_bytes(file_bytes, first_page=i+1, last_page=i+1)
+
+                    for img in pages:
+                        # Convert to OpenCV image
+                        cv_img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+                        gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+
+                        results = reader.readtext(gray)
+                        ocr_text = "\n".join([r[1] for r in results])
+
+                        final_text += ocr_text + "\n"
 
             return jsonify({
-                'status': 'PDF uploaded successfully',
-                'text': text.strip()
+                'status': 'PDF processed successfully',
+                'pages': total_pages,
+                'text': final_text.strip()
             })
 
         except Exception as e:
             return jsonify({'error': f'PDF processing failed: {str(e)}'}), 500
 
-    # ------------------------------
-    # 🔍 Else assume IMAGE OCR
-    # ------------------------------
+    # =====================================================================
+    #  🔍 CASE 2: IMAGE FILE → Perform OCR
+    # =====================================================================
     try:
         image_bytes = file.read()
 
@@ -62,7 +87,6 @@ def ocr_endpoint():
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         enhanced_gray = clahe.apply(gray)
 
@@ -73,13 +97,14 @@ def ocr_endpoint():
         text = "\n".join([res[1] for res in results])
 
         return jsonify({
-            'status': 'Image uploaded successfully',
+            'status': 'Image processed successfully',
             'text': text.strip()
         })
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
 
+if __name__ == '__main__':
+    # NOTE: Run with poppler installed for pdf2image!
+    app.run(debug=True, host='0.0.0.0', port=5000)
