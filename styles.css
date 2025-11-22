@@ -7,3 +7,20 @@ h1 { font-size:24px; margin-bottom:12px; }
 .output { margin-top:12px; }
 pre { background:#111827; color:#e6eef8; padding:12px; border-radius:8px; white-space:pre-wrap; }
 .status { margin-top:10px; color:#6b7280 }
+
+/* --- New Progress Bar Styles --- */
+.progress-bar-container {
+    height: 12px;
+    background-color: #e2e8f0;
+    border-radius: 6px;
+    margin-top: 8px;
+    overflow: hidden;
+    display: none; /* Hidden by default */
+}
+
+.progress-bar {
+    height: 100%;
+    width: 0%;
+    background-color: #3b82f6; /* Blue */
+    transition: width 0.3s ease-in-out;
+}
