@@ -3,8 +3,8 @@ const uploadBtn = document.getElementById('uploadBtn');
 const previewArea = document.getElementById('previewArea');
 const extractedTextEl = document.getElementById('extractedText');
 const statusEl = document.getElementById('status');
-const progressBarEl = document.getElementById('progressBar'); // New element
-const progressBarContainerEl = document.getElementById('progressBarContainer'); // New element
+const progressBarEl = document.getElementById('progressBar'); 
+const progressBarContainerEl = document.getElementById('progressBarContainer'); 
 
 let selectedFile = null;
 let currentTaskId = null;
@@ -16,6 +16,7 @@ function resetUI(message = '') {
   extractedTextEl.textContent = '';
   progressBarEl.style.width = '0%';
   progressBarContainerEl.style.display = 'none';
+  uploadBtn.disabled = false;
 }
 
 function updateStatus(message, isError = false) {
@@ -118,15 +119,17 @@ async function pollProgress() {
       
       // Update progress bar
       progressBarEl.style.width = `${progress}%`;
-      updateStatus(`Processing: ${progress}%...`);
-
-      if (progress === 100) {
-        // Task is complete
+      updateStatus(`Processing PDF: ${progress}%...`);
+      
+      // FIX: Only stop polling and display text when progress is 100 AND text is received.
+      if (progress === 100 && data.text) {
+        // Task is complete and data is ready
         clearInterval(pollInterval);
-        updateStatus('PDF Processing Done.');
+        updateStatus('PDF Processing Done. Entire document text extracted.');
         extractedTextEl.textContent = data.text || 'No text found.';
         uploadBtn.disabled = false;
         currentTaskId = null;
+        progressBarContainerEl.style.display = 'none'; // Hide bar on completion
       }
       
     } catch (err) {
