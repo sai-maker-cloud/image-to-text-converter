@@ -1,74 +1,34 @@
-const fileInput = document.getElementById("fileInput");
-const uploadBtn = document.getElementById("uploadBtn");
-const previewArea = document.getElementById("previewArea");
-const extractedTextEl = document.getElementById("extractedText");
-const statusEl = document.getElementById("status");
+const drop = document.getElementById("drop")
+const input = document.getElementById("img")
+const loader = document.getElementById("loader")
 
-const progressContainer = document.getElementById("progressContainer");
-const progressBar = document.getElementById("progressBar");
+drop.onclick = () => input.click()
 
-let selectedFile = null;
+drop.ondragover = e => {
+    e.preventDefault()
+    drop.classList.add("active")
+}
 
-// ---------------------- FILE PREVIEW -------------------------
-fileInput.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+drop.ondragleave = () => drop.classList.remove("active")
 
-    selectedFile = file;
-    previewArea.innerHTML = "";
+drop.ondrop = e => {
+    e.preventDefault()
+    input.files = e.dataTransfer.files
+    drop.classList.remove("active")
+}
 
-    if (file.type.startsWith("image/")) {
-        const img = document.createElement("img");
-        img.src = URL.createObjectURL(file);
-        img.className = "preview-img";
-        previewArea.appendChild(img);
-    } else if (file.type === "application/pdf") {
-        previewArea.textContent = "PDF Selected ✔";
-    } else {
-        previewArea.textContent = "Unsupported file type.";
-    }
-});
+async function convert(){
+    if(!input.files.length) return
+    loader.style.display="block"
+    const form = new FormData()
+    form.append("image",input.files[0])
 
-// ---------------------- UPLOAD WITH PROGRESS -------------------------
-uploadBtn.onclick = () => {
-    if (!selectedFile) {
-        alert("Please select a file.");
-        return;
-    }
+    const res = await fetch("/extract",{method:"POST",body:form})
+    const data = await res.json()
 
-    statusEl.textContent = "Uploading...";
-    extractedTextEl.textContent = "";
-
-    const form = new FormData();
-    form.append("file", selectedFile);
-
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "http://127.0.0.1:5000/api/ocr");  // IMPORTANT FIX
-
-    progressContainer.style.display = "block";
-    progressBar.style.width = "0%";
-
-    xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-            let percent = Math.round((e.loaded / e.total) * 100);
-            progressBar.style.width = percent + "%";
-        }
-    };
-
-    xhr.onload = () => {
-        try {
-            const res = JSON.parse(xhr.responseText);
-            statusEl.textContent = res.status || "Completed";
-            extractedTextEl.textContent = res.text || "No text extracted";
-        } catch (err) {
-            statusEl.textContent = "Server returned invalid JSON.";
-        }
-        progressBar.style.width = "100%";
-    };
-
-    xhr.onerror = () => {
-        statusEl.textContent = "Upload failed.";
-    };
-
-    xhr.send(form);
-};
+    loader.style.display="none"
+    document.getElementById("output").innerText=data.text
+    const link=document.getElementById("download")
+    link.href=data.download
+    link.innerText="DOWNLOAD TEXT"
+}
