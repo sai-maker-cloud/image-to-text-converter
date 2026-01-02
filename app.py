@@ -1,76 +1,44 @@
-from flask import Flask, request, jsonify, render_template
-from flask_cors import CORS
-import numpy as np
-import easyocr
-import cv2
-import PyPDF2
+from flask import Flask, request, jsonify, send_file
+from PIL import Image
+import pytesseract
+import os
+from datetime import datetime
 
 app = Flask(__name__)
-CORS(app)
 
-# Initialize EasyOCR
-try:
-    reader = easyocr.Reader(['en'], gpu=True)
-    print("EasyOCR on GPU")
-except:
-    reader = easyocr.Reader(['en'], gpu=False)
-    print("EasyOCR on CPU")
+UPLOAD_FOLDER = "uploads"
+TEXT_FOLDER = "text_output"
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(TEXT_FOLDER, exist_ok=True)
 
 @app.route("/")
-def index():
-    return render_template("index.html")
+def home():
+    return send_file("index.html")
 
-# ---------- GLOBAL ERROR HANDLER (NO HTML ERRORS) ----------
-@app.errorhandler(Exception)
-def handle_error(e):
-    return jsonify({"error": str(e)}), 500
+@app.route("/extract", methods=["POST"])
+def extract():
+    file = request.files["image"]
+    path = os.path.join(UPLOAD_FOLDER, file.filename)
+    file.save(path)
 
-# ---------- OCR + PDF API ----------
-@app.route("/api/ocr", methods=["POST"])
-def ocr_endpoint():
-    if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+    image = Image.open(path)
+    text = pytesseract.image_to_string(image)
 
-    file = request.files["file"]
-    filename = file.filename.lower()
+    name = datetime.now().strftime("%Y%m%d%H%M%S") + ".txt"
+    text_path = os.path.join(TEXT_FOLDER, name)
 
-    # ---------------- PDF Extract ----------------
-    if filename.endswith(".pdf"):
-        try:
-            pdf_reader = PyPDF2.PdfReader(file)
-            text = ""
+    with open(text_path, "w", encoding="utf-8") as f:
+        f.write(text)
 
-            for page in pdf_reader.pages:
-                txt = page.extract_text()
-                if txt:
-                    text += txt + "\n"
+    return jsonify({
+        "text": text,
+        "download": f"/download/{name}"
+    })
 
-            return jsonify({
-                "status": "PDF uploaded successfully",
-                "text": text.strip()
-            })
-        except Exception as e:
-            return jsonify({"error": f"PDF error: {str(e)}"}), 500
-
-    # ---------------- IMAGE OCR ----------------
-    try:
-        image_bytes = file.read()
-        nparr = np.frombuffer(image_bytes, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-        results = reader.readtext(gray)
-        text = "\n".join([res[1] for res in results])
-
-        return jsonify({
-            "status": "Image uploaded successfully",
-            "text": text.strip()
-        })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+@app.route("/download/<filename>")
+def download(filename):
+    return send_file(os.path.join(TEXT_FOLDER, filename), as_attachment=True)
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True)
