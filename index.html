@@ -1,90 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF & Image OCR</title>
-
-    <style>
-        body {
-            background: #121212;
-            color: white;
-            font-family: Arial, sans-serif;
-            padding: 20px;
-        }
-        .container {
-            max-width: 550px;
-            margin: auto;
-            background: #1e1e1e;
-            padding: 20px;
-            border-radius: 10px;
-        }
-        input[type="file"] {
-            width: 100%;
-            margin: 10px 0;
-        }
-        button {
-            width: 100%;
-            padding: 12px;
-            background: #0066ff;
-            border: none;
-            color: white;
-            font-size: 16px;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-        button:hover { background: #0053cc; }
-        .preview-img {
-            width: 100%;
-            border-radius: 8px;
-            margin-top: 10px;
-        }
-        #status { margin-top: 10px; text-align: center; }
-        #extractedText {
-            background: #222;
-            padding: 15px;
-            margin-top: 15px;
-            border-radius: 8px;
-            white-space: pre-wrap;
-        }
-        .progress-container {
-            width: 100%;
-            background: #333;
-            height: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
-            display: none;
-        }
-        .progress-bar {
-            height: 10px;
-            width: 0%;
-            background: #00e676;
-            border-radius: 5px;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Image To Text</title>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<div class="container">
-    <h2>Image / PDF Text Extractor</h2>
+<div class="bg"></div>
 
-    <input type="file" id="fileInput" accept="image/*,application/pdf" />
+<div class="app">
+    <h1>IMAGE → TEXT</h1>
 
-    <div id="previewArea">No file selected</div>
-
-    <button id="uploadBtn">Upload & Extract</button>
-
-    <div id="status"></div>
-
-    <div class="progress-container" id="progressContainer">
-        <div class="progress-bar" id="progressBar"></div>
+    <div class="drop" id="drop">
+        <p>DROP IMAGE HERE</p>
+        <input type="file" id="img" accept="image/*">
     </div>
 
-    <h3>Extracted Text:</h3>
-    <div id="extractedText"></div>
+    <button onclick="convert()">CONVERT</button>
+
+    <div class="loader" id="loader"></div>
+
+    <pre id="output"></pre>
+    <a id="download"></a>
 </div>
 
 <script src="main.js"></script>
-
 </body>
 </html>
